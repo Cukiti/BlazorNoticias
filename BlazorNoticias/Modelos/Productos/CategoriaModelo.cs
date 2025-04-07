@@ -14,6 +14,8 @@ namespace BlazorNoticias.Modelos.Productos
         public string Nombre { get; set; }
 
         public bool Activo { get; set; }
+        public string? ImagenAlmacenada { get; set; }
+        public string? Descripcion { get; set; } 
 
         public CategoriaModelo()
         {

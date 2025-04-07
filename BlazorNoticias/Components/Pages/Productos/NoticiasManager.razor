@@ -6,7 +6,7 @@
 @rendermode InteractiveServer
 <PageTitle>NOTICIAS HOT</PageTitle>
 
-<h3>NoticiasManager</h3>
+<h3>Noticias</h3>
 
 @if (Modelotemp is not null)
 {
@@ -15,10 +15,15 @@
         <ValidationSummary />
 
         <div class="form-group">
-            <label for="Nombre">NOTICIA</label>
+            <label for="Nombre">Nombre</label>
             <InputText id="Nombre" class="form-control" @bind-Value="Modelotemp.Nombre" placeholder="Escriba la Noticia" />
             <ValidationMessage For="@(() => Modelotemp.Nombre)" />
         </div>
+        <div class="form-group">
+            <label for="Descripcion">Descripción</label>
+            <InputTextArea id="Descripcion" class="form-control" @bind-Value="Modelotemp.Descripcion" placeholder="Resumen breve..." />
+        </div>
+
         @if (iseditmode)
         {
             <button type="submit" class="btn btn-success">Aplicar cambios</button>
@@ -40,17 +45,36 @@
     }
 }
 
-<QuickGrid Items="NoticiasFiltro" Theme="default" Class="table table-sm table-hover" @ref="quickGridRef">
-    <PropertyColumn Title="Nombre" Property="@((x)=> x.Nombre)" />
+<QuickGrid Items="NoticiasFiltro" Theme="default" Class="table table-sm table-hover" @ref="quickGridRef" Pagination="Paginacion" Virtualize>
+    <PropertyColumn Title="Nombre" Property="@((x)=> x.Nombre)" >
+        <ColumnOptions>
+            <input type="search" @bind-value="NombreFiltro" @bind-value:event="oninput"  class="form-control" placeholder="Busqueda.." />
+        </ColumnOptions>
+    </PropertyColumn>
+    
+    <TemplateColumn Title="Descripción" Context="item">
+        <div style="white-space: pre-wrap;">
+            @(item.Descripcion?.Length > 100 ? item.Descripcion.Substring(0, 100) + "..." : item.Descripcion)
+            @if (!string.IsNullOrEmpty(item.Descripcion) && item.Descripcion.Length > 100)
+            {
+                <a href="#" class="ms-2" @onclick="() => MostrarDescripcionPopup(item)">ver más</a>
+
+            }
+        </div>
+    </TemplateColumn>
     <PropertyColumn Title="Activo" Property="@((x)=> x.Activo)" />
     <TemplateColumn Title="Acciones" Context="NoticiaFila">
         <button type="button" @onclick="@( async() => await PrepararEdicion(NoticiaFila.Id))" class="btn btn-sm btn-success">Editar</button>
         <button type="button" @onclick="@( async() => await Eliminar(NoticiaFila.Id))" class="btn btn-sm btn-danger">Eliminar</button>
     </TemplateColumn>
+    
 
 </QuickGrid>
 
+
+<Paginator State="Paginacion" />
 @code {
+
     [Inject] ApplicationDbContext? DbCtx { get; set;  }
     [Inject] IJSRuntime? JSR { get; set; }
 
@@ -60,7 +84,18 @@
     private string? EstatusMessage = null;
 
 
+    
+    async Task MostrarDescripcionPopup(CategoriaModelo item)
+    {
+        if (JSR is not null && !string.IsNullOrEmpty(item.Descripcion))
+        {
+            await JSR.InvokeVoidAsync("alert", item.Descripcion);
+        }
+    }
+
+
     private QuickGrid<CategoriaModelo> quickGridRef = new QuickGrid<CategoriaModelo>();
+    PaginationState Paginacion = new PaginationState {ItemsPerPage = 5 };
 
     protected override void OnInitialized()
     {
@@ -72,6 +107,7 @@
     private string? NombreFiltro;
     private IQueryable<CategoriaModelo>? NoticiasMaestra;
     private IQueryable<CategoriaModelo>? NoticiasFiltro
+
     {
         get
         {
@@ -98,6 +134,7 @@
                 if (Categoriaeditar.Nombre != Modelotemp.Nombre)
                 {
                     Categoriaeditar.Nombre = Modelotemp.Nombre;
+                    Categoriaeditar.Descripcion = Modelotemp.Descripcion;
                     DbCtx.Categorias.Update(Categoriaeditar);
                     if (await DbCtx.SaveChangesAsync() > 0)
                     {
@@ -114,8 +151,12 @@
         {
             if (Modelotemp is not null && DbCtx is not null)
             {
-                CategoriaModelo NuevaNoticia = new CategoriaModelo { Nombre = Modelotemp.Nombre };
-                DbCtx.Categorias.Add(NuevaNoticia);
+                CategoriaModelo NuevaNoticia = new CategoriaModelo
+                    {
+                        Nombre = Modelotemp.Nombre,
+                        Descripcion = Modelotemp.Descripcion
+                    };
+                    DbCtx.Categorias.Add(NuevaNoticia);
                 if (await DbCtx.SaveChangesAsync() > 0)
                 {
 
@@ -142,6 +183,7 @@
             {
                 iseditmode = true;
                 Modelotemp.Nombre = Categoriaeditar.Nombre;
+                Modelotemp.Descripcion = Categoriaeditar.Descripcion;
             }
 
         }
@@ -152,7 +194,7 @@
     {
         if (JSR is not null && Categoriaid > 0)
         {
-            bool? Resultado = await JSR.InvokeAsync<bool>("Deseas eliminar este registro?");
+            bool? Resultado = await JSR.InvokeAsync<bool>("confirm","Deseas eliminar este registro?");
             if (Resultado == true)
             {
                 if (DbCtx is not null)
@@ -192,9 +234,12 @@
     {
         [StringLength(100, MinimumLength = 3)]
         public string Nombre { get; set; } = "";
+        public string? Descripcion { get; set; } 
 
     
     }
+
+
 
 }
  
