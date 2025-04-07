@@ -1,0 +1,200 @@
+﻿@page "/productos/noticias"
+@using System.ComponentModel.DataAnnotations
+@using BlazorNoticias.Data
+@using BlazorNoticias.Modelos.Productos
+@using Microsoft.AspNetCore.Components.QuickGrid
+@rendermode InteractiveServer
+<PageTitle>NOTICIAS HOT</PageTitle>
+
+<h3>NoticiasManager</h3>
+
+@if (Modelotemp is not null)
+{
+    <EditForm Model="@Modelotemp" FormName="NoticiaForm" OnValidSubmit="@AlValidar">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="form-group">
+            <label for="Nombre">NOTICIA</label>
+            <InputText id="Nombre" class="form-control" @bind-Value="Modelotemp.Nombre" placeholder="Escriba la Noticia" />
+            <ValidationMessage For="@(() => Modelotemp.Nombre)" />
+        </div>
+        @if (iseditmode)
+        {
+            <button type="submit" class="btn btn-success">Aplicar cambios</button>
+            <button type="button"@onclick ="@(()=>{
+                iseditmode = false;
+                Limpiar();
+            })" class="btn btn-secondary">Cancelar</button>
+        }
+        else
+        {
+            <button type="submit" class="btn btn-primary">Guardar</button>
+        }
+
+
+    </EditForm>
+    @if(EstatusMessage is not null)
+    {
+        <div class="alert alert-info">@EstatusMessage</div>
+    }
+}
+
+<QuickGrid Items="NoticiasFiltro" Theme="default" Class="table table-sm table-hover" @ref="quickGridRef">
+    <PropertyColumn Title="Nombre" Property="@((x)=> x.Nombre)" />
+    <PropertyColumn Title="Activo" Property="@((x)=> x.Activo)" />
+    <TemplateColumn Title="Acciones" Context="NoticiaFila">
+        <button type="button" @onclick="@( async() => await PrepararEdicion(NoticiaFila.Id))" class="btn btn-sm btn-success">Editar</button>
+        <button type="button" @onclick="@( async() => await Eliminar(NoticiaFila.Id))" class="btn btn-sm btn-danger">Eliminar</button>
+    </TemplateColumn>
+
+</QuickGrid>
+
+@code {
+    [Inject] ApplicationDbContext? DbCtx { get; set;  }
+    [Inject] IJSRuntime? JSR { get; set; }
+
+    private InputModel? Modelotemp = new InputModel();
+    private CategoriaModelo? Categoriaeditar = new CategoriaModelo();
+    private bool iseditmode = false;
+    private string? EstatusMessage = null;
+
+
+    private QuickGrid<CategoriaModelo> quickGridRef = new QuickGrid<CategoriaModelo>();
+
+    protected override void OnInitialized()
+    {
+        NoticiasMaestra = DbCtx?.Categorias.OrderDescending().AsQueryable();
+
+        base.OnInitialized();
+    }
+
+    private string? NombreFiltro;
+    private IQueryable<CategoriaModelo>? NoticiasMaestra;
+    private IQueryable<CategoriaModelo>? NoticiasFiltro
+    {
+        get
+        {
+            if(NoticiasMaestra is not null )
+            {
+                var query = NoticiasMaestra;
+                if (!string.IsNullOrWhiteSpace(NombreFiltro))
+                {
+                    query = query.Where(x => x.Nombre.Contains(NombreFiltro));
+                }
+                return query;
+            }
+            return null;
+        }
+
+    }
+
+    async Task AlValidar()
+    {
+        if(iseditmode)
+        {
+            if (DbCtx is not null && Categoriaeditar is not null && Modelotemp is not null)
+            {
+                if (Categoriaeditar.Nombre != Modelotemp.Nombre)
+                {
+                    Categoriaeditar.Nombre = Modelotemp.Nombre;
+                    DbCtx.Categorias.Update(Categoriaeditar);
+                    if (await DbCtx.SaveChangesAsync() > 0)
+                    {
+                        await quickGridRef.RefreshDataAsync();
+                        Limpiar();
+                        iseditmode = false;
+                        EstatusMessage = "Registro Guardado";
+
+                    }
+                }
+            }
+
+        }else
+        {
+            if (Modelotemp is not null && DbCtx is not null)
+            {
+                CategoriaModelo NuevaNoticia = new CategoriaModelo { Nombre = Modelotemp.Nombre };
+                DbCtx.Categorias.Add(NuevaNoticia);
+                if (await DbCtx.SaveChangesAsync() > 0)
+                {
+
+                    await quickGridRef.RefreshDataAsync();
+                    Limpiar();
+                    EstatusMessage = "Registro Guardado";
+
+                }
+
+            }
+
+        }
+
+        await Task.Delay(1000);
+        Console.WriteLine("Validado");
+
+    }
+    async Task PrepararEdicion(int CategoriaId)
+    {
+        if (CategoriaId > 0 && DbCtx is not null )
+        {
+            Categoriaeditar = await DbCtx.Categorias.FindAsync(CategoriaId);
+            if (Categoriaeditar is not null && Modelotemp is not null)
+            {
+                iseditmode = true;
+                Modelotemp.Nombre = Categoriaeditar.Nombre;
+            }
+
+        }
+
+    }
+
+    async Task Eliminar (int Categoriaid)
+    {
+        if (JSR is not null && Categoriaid > 0)
+        {
+            bool? Resultado = await JSR.InvokeAsync<bool>("Deseas eliminar este registro?");
+            if (Resultado == true)
+            {
+                if (DbCtx is not null)
+                {
+                    var RegistroParaEliminar = await DbCtx.Categorias.FindAsync(Categoriaid);
+                    if(RegistroParaEliminar is not null)
+                    {
+                        DbCtx.Categorias.Remove(RegistroParaEliminar);
+                        if (await DbCtx.SaveChangesAsync() > 0)
+                        {
+
+                            await quickGridRef.RefreshDataAsync();
+                            Limpiar();
+                            EstatusMessage = "Registro Eliminado";
+
+                        }
+                    }
+
+                  
+
+                }
+            }
+        }
+    }
+
+    void Limpiar()
+    {
+        Modelotemp = null;
+        Modelotemp = new InputModel();
+        iseditmode = false;
+        EstatusMessage = null;
+
+    }
+
+
+    class InputModel
+    {
+        [StringLength(100, MinimumLength = 3)]
+        public string Nombre { get; set; } = "";
+
+    
+    }
+
+}
+ 

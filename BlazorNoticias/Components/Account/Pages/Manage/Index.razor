@@ -1,13 +1,16 @@
 ﻿@page "/Account/Manage"
 
 @using System.ComponentModel.DataAnnotations
+@using BlazorNoticias.Modelos
 @using Microsoft.AspNetCore.Identity
 @using BlazorNoticias.Data
+@using Microsoft.EntityFrameworkCore
 
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
 @inject IdentityUserAccessor UserAccessor
 @inject IdentityRedirectManager RedirectManager
+@inject ApplicationDbContext Db
 
 <PageTitle>Profile</PageTitle>
 
@@ -23,10 +26,55 @@
                 <input type="text" value="@username" id="username" class="form-control" placeholder="Choose your username." disabled />
                 <label for="username" class="form-label">Username</label>
             </div>
+
             <div class="form-floating mb-3">
-                <InputText @bind-Value="Input.PhoneNumber" id="Input.PhoneNumber" class="form-control" placeholder="Enter your phone number" />
-                <label for="Input.PhoneNumber" class="form-label">Phone number</label>
-                <ValidationMessage For="() => Input.PhoneNumber" class="text-danger" />
+                <InputText @bind-Value="Input.Nombre" id="Input.Nombre" class="form-control" placeholder="Introduce tu nombre" />
+                <label for="Input.Nombre" class="form-label">Nombre</label>
+                <ValidationMessage For="() => Input.Nombre" class="text-danger" />
+            </div>
+            <div class="form-floating mb-3">
+                <InputText @bind-Value="Input.Apellido" id="Input.Apellido" class="form-control" placeholder="Introduce tus apellidos" />
+                <label for="Input.Apellido" class="form-label">Apellido</label>
+                <ValidationMessage For="() => Input.Apellido" class="text-danger" />
+            </div>
+            <div class="form-floating mb-3">
+                <InputText @bind-Value="Input.Compañia" id="Input.Compañia" class="form-control" placeholder="Coloca tu compañia" />
+                <label for="Input.Compañia" class="form-label">Compañia</label>
+                <ValidationMessage For="() => Input.Compañia" class="text-danger" />
+            </div>
+            <div class="form-floating mb-3">
+                <InputDate @bind-Value="Input.FechaNacimiento" id="Input.FechaNacimiento" class="form-control" />
+                <label for="Input.FechaNacimiento" class="form-label">Fecha De Nacimiento</label>
+                <ValidationMessage For="() => Input.FechaNacimiento" class="text-danger" />
+            </div>
+            <div class="form-floating mb-3">
+                <InputSelect @bind-Value="@Input.PaisId" id="Input.Ciudad" class="form-control">
+                    @if (Paises is not null && Paises.Any())
+                    {
+                        @foreach (var ciudad in Paises)
+                        {
+                            <option value="@ciudad.Id">@ciudad.Nombre</option>
+                        }
+                    }
+                    else
+                    {
+                        <option value="-1">-- Tabla Ciudades Vacía --</option>
+                    }
+                </InputSelect>
+
+                <label for="Input.Ciudad" class="form-label">Ciudades</label>
+                <ValidationMessage For="() => Input.PaisId" class="text-danger" />
+            </div>
+
+            <div class="form-floating mb-3">
+                <InputText @bind-Value="Input.Direccion" id="Input.Direccion" class="form-control" placeholder="Coloca tu direccion" />
+                <label for="Input.Direccion" class="form-label">Direccion</label>
+                <ValidationMessage For="() => Input.Direccion" class="text-danger" />
+            </div>
+            <div class="form-floating mb-3">
+                <InputText @bind-Value="Input.JobCardnet" id="Input.JobCardnet" class="form-control" placeholder="JCN VERIFICACION" />
+                <label for="Input.JobCardnet" class="form-label">JobCardnet</label>
+                <ValidationMessage For="() => Input.JobCardnet" class="text-danger" />
             </div>
             <button type="submit" class="w-100 btn btn-lg btn-primary">Save</button>
         </EditForm>
@@ -37,6 +85,7 @@
     private ApplicationUser user = default!;
     private string? username;
     private string? phoneNumber;
+    private PaisesModelo[]? Paises;
 
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
@@ -49,8 +98,17 @@
         user = await UserAccessor.GetRequiredUserAsync(HttpContext);
         username = await UserManager.GetUserNameAsync(user);
         phoneNumber = await UserManager.GetPhoneNumberAsync(user);
+        Paises = await Db.Paises.Where(XmlConfigurationExtensions => XmlConfigurationExtensions.Activoo==true).ToArrayAsync();
 
         Input.PhoneNumber ??= phoneNumber;
+        Input.Nombre ??= user.Nombre;
+        Input.Apellido ??= user.Apellido;
+        Input.Compañia ??= user.Compañia;
+        Input.FechaNacimiento ??= user.FechaNacimiento;
+        Input.PaisId ??= user.PaisId;
+        Input.Direccion ??= user.Direccion;
+        Input.JobCardnet ??= user.JobCardnet;
+
     }
 
     private async Task OnValidSubmitAsync()
@@ -63,6 +121,41 @@
                 RedirectManager.RedirectToCurrentPageWithStatus("Error: Failed to set phone number.", HttpContext);
             }
         }
+        if (user.Nombre != Input.Nombre)
+        {
+            user.Nombre = Input.Nombre;
+        }
+        if (user.Apellido != Input.Apellido)
+        {
+            user.Apellido = Input.Apellido;
+        }
+        if (user.Compañia != Input.Compañia)
+        {
+            user.Compañia = Input.Compañia;
+        }
+        if (user.FechaNacimiento != Input.FechaNacimiento)
+        {
+            user.FechaNacimiento = Input.FechaNacimiento;
+        }
+        if (user.PaisId != Input.PaisId)
+        {
+            user.PaisId = Input.PaisId;
+        }
+        if (user.Direccion != Input.Direccion)
+        {
+            user.Direccion = Input.Direccion;
+        }
+        if (user.JobCardnet != Input.JobCardnet)
+        {
+            user.JobCardnet = Input.JobCardnet;
+        }
+
+        var resultado = await UserManager.UpdateAsync(user);
+        if(!resultado.Succeeded)
+        {
+            RedirectManager.RedirectToCurrentPageWithStatus("Error: Fallo al actualizar los datos", HttpContext);
+        }
+
 
         await SignInManager.RefreshSignInAsync(user);
         RedirectManager.RedirectToCurrentPageWithStatus("Your profile has been updated", HttpContext);
@@ -73,5 +166,20 @@
         [Phone]
         [Display(Name = "Phone number")]
         public string? PhoneNumber { get; set; }
+        [StringLength(100)]
+        public string? Nombre { get; set; }
+        [StringLength(100)]
+        [Display(Name ="Apellidos")]
+        public string? Apellido { get; set; }
+        [StringLength(100)]
+        public string? Compañia { get; set; }
+        [DataType(DataType.Date), Display(Name ="Fecha de Nacimiento")]
+        public DateTime? FechaNacimiento { get; set; }
+        public int? PaisId { get; set; }
+        [StringLength(100)]
+        public string? Direccion { get; set; }
+        [StringLength(100)]
+        public string? JobCardnet { get; set; }
+
     }
 }
